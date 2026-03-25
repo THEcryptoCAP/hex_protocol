@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 // 1. Define the Order Struct
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Order {
     pub id: u64,
