@@ -1,0 +1,3 @@
+// This code acts as the "Host". It takes the batched trades from your engine, serializes them, and feeds them into the ZK Virtual Machine.
+// To ensure it is highly auditable and memory-safe, we avoid passing massive amounts of raw data by value (which duplicates memory).
+// Instead, we use references and strict Result types for error handling so the sequencer never silently panics during a trade execution.
