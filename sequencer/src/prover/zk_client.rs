@@ -28,3 +28,33 @@ impl HexProver {
             elf_path,
         }
     }
+    /// Takes a batch of trades, serializes them, and generates the ZK Proof.
+    /// Returns a Result to ensure any proving errors are explicitly handled by the sequencer.
+    pub fn generate_evm_proof(&self, payload: &BatchPayload) -> Result<SP1ProofWithPublicValues, String> {
+        // 1. Setup standard input for the ZK-VM
+        let mut stdin = SP1Stdin::new();
+        
+        // Serialize the payload using bincode for compact memory footprint
+        let serialized_data = bincode::serialize(payload)
+            .map_err(|e| format!("Serialization failed: {}", e))?;
+        
+        stdin.write_vec(serialized_data);
+
+        println!("Generating ZK Proof for HashKey EVM verification...");
+
+        // 2. Setup the proving key and verifying key based on our compiled guest program
+        let (pk, _vk) = self.client.setup(self.elf_path);
+
+     // 3. Generate the actual Plonk/Groth16 proof
+        // We use `prove` and map the error to a String so our async loop doesn't crash on failure.
+        let proof = self.client
+            .prove(&pk, stdin)
+            .plonk() // Plonk proofs are natively verifiable on EVM chains like HashKey
+            .run()
+            .map_err(|e| format!("Proof generation failed: {}", e))?;
+
+        println!("Proof generated successfully!");
+        
+        Ok(proof)
+    }
+}
