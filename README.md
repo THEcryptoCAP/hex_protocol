@@ -1,83 +1,78 @@
 HEX(Hash-DEX) is a decentralised CLOB on Hash key chain(optimistic rollup)
-# Walkthrough: Action-Based WebSocket Routing
 
-## How It Works
 
-### The New Pipeline
+
+## The Full Pipeline: Life of an Order
+
+Here is the exact path an order takes through the entire system, step by step.
 
 ```mermaid
-sequenceDiagram
-    participant Client as Frontend/Bot
-    participant WS as WebSocket Task
-    participant MPSC as MPSC Channel
-    participant Engine as Matching Engine Loop
-    
-    Client->>WS: {"action": "PlaceOrder", "payload": {...}}
-    WS->>WS: verify_order_signature()
-    WS->>MPSC: EngineMessage::PlaceOrder(order)
-    MPSC->>Engine: book.place_order(order)
-    Engine-->>WS: (fire-and-forget)
-    WS-->>Client: {"status": "OrderPlaced", "order_id": 42}
+flowchart TD
+    A[Client Browser or Bot] -->|WS JSON| B
 
-    Client->>WS: {"action": "CancelOrder", "payload": {...}}
-    WS->>WS: verify_cancel_signature()
-    WS->>MPSC: EngineMessage::CancelOrder { id, resp_tx }
-    MPSC->>Engine: book.cancel_order(id)
-    Engine-->>WS: oneshot → true/false
-    WS-->>Client: {"status": "Cancelled", "order_id": 5}
+    subgraph websocket.rs
+        B[handle_connection] --> C{action?}
+        C -->|PlaceOrder| D[Parse RawOrderPayload]
+        C -->|CancelOrder| E[Parse RawCancelPayload]
+        C -->|GetOrder| F[Parse RawGetOrderPayload]
+        D --> G[verify_order_signature - EIP712]
+        E --> H[verify_cancel_signature - EIP712]
+        G --> I[AtomicU64 fetch_add - unique ID]
+        I --> J[Construct Order struct]
+        J --> K[mpsc send PlaceOrder]
+        H --> L[Create oneshot channel]
+        L --> M[mpsc send CancelOrder]
+        F --> N[Create oneshot channel]
+        N --> O[mpsc send GetOrder]
+    end
 
-    Client->>WS: {"action": "GetOrder", "payload": {...}}
-    WS->>MPSC: EngineMessage::GetOrder { id, resp_tx }
-    MPSC->>Engine: book.get_order(id)
-    Engine-->>WS: oneshot → Some(Order) / None
-    WS-->>Client: {"status": "Found", "order": {...}}
+    K --> P
+    M --> P
+    O --> P
+
+    subgraph main.rs
+        P[Engine Loop - single threaded] -->|PlaceOrder| Q[book.place_order]
+        P -->|CancelOrder| R[book.cancel_order]
+        P -->|GetOrder| S[book.get_order]
+        Q --> V[trade_buffer.extend fills]
+        V -->|buffer >= BATCH_SIZE| W[Construct BatchPayload]
+    end
+
+    subgraph orderbook.rs
+        Q -.-> Q2[match_buy or match_sell]
+        Q2 -.-> Q3[Constructs Trade on each fill]
+        R -.-> R2[HashMap remove - O1]
+        S -.-> S2[HashMap get - O1]
+    end
+
+    R2 -->|oneshot reply| T[WS: Cancelled or Not Found]
+    S2 -->|oneshot reply| U[WS: Order JSON or Not Found]
+
+    subgraph zk_client.rs
+        W --> X[HexProver generate_evm_proof]
+    end
+
+    subgraph program/src/main.rs
+        X --> Y[SP1 ZK-VM verify_state_transition]
+    end
+
+    Y --> Z[On-chain HashKey EVM]
 ```
 
-### PlaceOrder (unchanged logic, new envelope)
-1. Client sends `{"action": "PlaceOrder", "payload": { user_address, price, amount, is_buy, signature }}`.
-2. The WebSocket task verifies the EIP-712 signature (unchanged crypto pipeline).
-3. The atomic counter generates a unique ID.
-4. An `EngineMessage::PlaceOrder(order)` is pushed into the MPSC channel.
-5. The engine loop calls `book.place_order()` — **fire-and-forget**, no response channel needed.
-6. Client gets `{"status": "OrderPlaced", "order_id": N}`.
+### Step-by-Step Walkthrough
 
-### CancelOrder (new)
-1. Client sends `{"action": "CancelOrder", "payload": { user_address, order_id, signature }}`.
-2. The WebSocket task verifies a **new** `Eip712CancelPayload` signature (hashes the `order_id` instead of trade data).
-3. A `tokio::oneshot::channel` is created — this is the return line.
-4. `EngineMessage::CancelOrder { id, response_tx }` is pushed into the MPSC channel.
-5. The engine loop calls `book.cancel_order(id)`, checks if it returned `Some`, and sends `true`/`false` back over the oneshot.
-6. The WebSocket task `await`s the oneshot result and replies to the client with `{"status": "Cancelled"}` or `{"error": "Order not found"}`.
-
-### GetOrder (new)
-1. Client sends `{"action": "GetOrder", "payload": { order_id }}`.
-2. **No signature required** — this is a public read-only query.
-3. A `oneshot::channel` is created.
-4. `EngineMessage::GetOrder { id, response_tx }` is pushed into the MPSC.
-5. The engine loop calls `book.get_order(id).cloned()` and sends the result back.
-6. The WebSocket task formats the full order as JSON and replies.
-
-> [!IMPORTANT]
-> The core design principle is preserved: the OrderBook is **never** touched from multiple threads. Every operation still flows through the single-threaded MPSC consumer loop. The `oneshot` channels only carry *results* back — they don't give external code access to the OrderBook.
-
----
-
-## New Client JSON Format
-
-All WebSocket messages must now be wrapped in an `action` envelope:
-
+#### Step 1: Client sends a WebSocket message
+The client (browser, trading bot, etc.) connects to `ws://0.0.0.0:3000/ws` and sends a JSON message:
 ```json
-// Place Order
-{"action": "PlaceOrder", "payload": {"user_address": "0x...", "price": 100, "amount": 5, "is_buy": true, "signature": "0x..."}}
-
-// Cancel Order
-{"action": "CancelOrder", "payload": {"user_address": "0x...", "order_id": 42, "signature": "0x..."}}
-
-// Get Order (no signature)
-{"action": "GetOrder", "payload": {"order_id": 42}}
+{
+  "action": "PlaceOrder",
+  "payload": {
+    "user_address": "0xAbC123...",
+    "price": 100,
+    "amount": 5,
+    "is_buy": true,
+    "signature": "0x1a2b3c..."
+  }
+}
 ```
 
-## Validation
-
-- `cargo check` passes with **zero errors** and **zero warnings from `orderbook.rs`**.
-- The only remaining warnings are from `zk_client.rs` (the ZK prover module — a separate integration task).
