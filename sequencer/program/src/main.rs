@@ -30,7 +30,7 @@ impl AccountState {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)] 
 pub struct Trade {
     pub maker_pubkey: Vec<u8>, // expected 33 bytes for compressed secp256k1
     pub taker_pubkey: Vec<u8>, // expected 33 bytes for compressed secp256k1

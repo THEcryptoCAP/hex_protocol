@@ -1,0 +1,1 @@
+{"rustc":2833068300835136146,"features":"[\"std\"]","declared_features":"[\"default\", \"std\"]","target":10976579194711861887,"profile":2040997289075261528,"path":7601978765692581232,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"release/.fingerprint/dashu-base-9ce9deddbc752d24/dep-lib-dashu_base","checksum":false}}],"rustflags":[],"config":2069994364910194474,"compile_kind":0}

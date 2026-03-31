@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 // 1. Define the Order Struct
 #[allow(dead_code)]
@@ -9,29 +9,45 @@ pub struct Order {
     pub price: u64,
     pub amount: u64,
     pub is_buy: bool,
+    pub timestamp: u64,
 }
 
 // 2. Define the OrderBook Struct
 pub struct OrderBook {
-    // BTreeMap keeps keys (prices) perfectly sorted.
-    // Asks (Sellers): We want the lowest price first. Standard BTreeMap sorts ascending.
-    pub asks: BTreeMap<u64, Vec<Order>>, 
+    // We store the actual order data here for O(1) lookups and cancellations
+    pub orders: HashMap<u64, Order>,
     
-    // Bids (Buyers): We want the highest price first. We will handle this by iterating in reverse.
-    pub bids: BTreeMap<u64, Vec<Order>>, 
+    // BTreeMap keeps keys (prices) perfectly sorted.
+    // Asks (Sellers): We use price as the key, and a queue of order IDs as the value.
+    pub asks: BTreeMap<u64, Vec<u64>>, 
+    
+    // Bids (Buyers): Same, queue of order IDs.
+    pub bids: BTreeMap<u64, Vec<u64>>, 
 }
 
 impl OrderBook {
     pub fn new() -> Self {
         Self {
+            orders: HashMap::new(),
             asks: BTreeMap::new(),
             bids: BTreeMap::new(),
         }
     }
+                  
+    // O(1) Read operation
+    pub fn get_order(&self, id: u64) -> Option<&Order> {
+        self.orders.get(&id)
+    }
+
+    // O(1) Cancel operation
+    // Note: The ID will lazily be removed from the BTreeMap queues during the next matching cycle
+    pub fn cancel_order(&mut self, id: u64) -> Option<Order> {
+        self.orders.remove(&id)
+    }
 
     // 3. The Core Processing Loop
     // Notice `mut order`: We take ownership of the order and mutate its amount if partially filled.
-    pub fn process_order(&mut self, mut order: Order) {
+    pub fn place_order(&mut self, mut order: Order) {
         if order.is_buy {
             self.match_buy(&mut order);
             // If the order wasn't fully filled, add the remainder to the bids book
@@ -49,44 +65,47 @@ impl OrderBook {
 
     // 4. Matching a Buy Order Against Existing Asks
     fn match_buy(&mut self, order: &mut Order) {
-        // We need to keep track of price levels that get completely emptied to clean up memory
         let mut empty_price_levels = Vec::new();
+        let mut fully_filled_ids = Vec::new();
 
-        // Iterate through asks starting from the lowest price
         for (&ask_price, asks_at_price) in self.asks.iter_mut() {
-            // Stop if the ask is too expensive, or our buy order is fully filled
             if ask_price > order.price || order.amount == 0 {
                 break; 
             }
 
-            // Iterate through the queue of orders at this specific price level (Time Priority)
-            // We use retain() to keep orders that aren't fully filled and drop the rest safely.
-            asks_at_price.retain_mut(|ask| {
+            asks_at_price.retain(|&ask_id| {
                 if order.amount == 0 {
-                    return true; // Keep remaining asks
+                    return true;
                 }
 
-                let fill_amount = std::cmp::min(order.amount, ask.amount);
-                
-                // Mutate both orders
-                order.amount -= fill_amount;
-                ask.amount -= fill_amount;
+                if let Some(ask) = self.orders.get_mut(&ask_id) {
+                    let fill_amount = std::cmp::min(order.amount, ask.amount);
+                    
+                    order.amount -= fill_amount;
+                    ask.amount -= fill_amount;
 
-                println!("Matched: {} units at price {}", fill_amount, ask_price);
+                    println!("Matched: {} units at price {}", fill_amount, ask_price);
 
-                // If ask.amount is > 0, return true to keep it in the Vec.
-                // If 0, return false, which automatically drops it from memory.
-                ask.amount > 0 
+                    if ask.amount == 0 {
+                        fully_filled_ids.push(ask_id);
+                        false // drop from queue
+                    } else {
+                        true // keep in queue
+                    }
+                } else {
+                    // Order was cancelled in O(1) earlier, drop it from queue now (lazy removal)
+                    false 
+                }
             });
 
-            // If we ate through all asks at this price level, mark it for removal
             if asks_at_price.is_empty() {
                 empty_price_levels.push(ask_price);
             }
         }
 
-        // 5. Memory Cleanup
-        // Remove empty Vectors from the BTreeMap so we don't waste memory on dead price levels
+        for id in fully_filled_ids {
+            self.orders.remove(&id);
+        }
         for price in empty_price_levels {
             self.asks.remove(&price);
         }
@@ -94,26 +113,35 @@ impl OrderBook {
 
     fn match_sell(&mut self, order: &mut Order) {
         let mut empty_price_levels = Vec::new();
+        let mut fully_filled_ids = Vec::new();
 
-        // Iterate through bids starting from the highest price (reverse order)
         for (&bid_price, bids_at_price) in self.bids.iter_mut().rev() {
             if bid_price < order.price || order.amount == 0 {
                 break;
             }
 
-            bids_at_price.retain_mut(|bid| {
+            bids_at_price.retain(|&bid_id| {
                 if order.amount == 0 {
                     return true;
                 }
 
-                let fill_amount = std::cmp::min(order.amount, bid.amount);
-                
-                order.amount -= fill_amount;
-                bid.amount -= fill_amount;
+                if let Some(bid) = self.orders.get_mut(&bid_id) {
+                    let fill_amount = std::cmp::min(order.amount, bid.amount);
+                    
+                    order.amount -= fill_amount;
+                    bid.amount -= fill_amount;
 
-                println!("Matched: {} units at price {}", fill_amount, bid_price);
+                    println!("Matched: {} units at price {}", fill_amount, bid_price);
 
-                bid.amount > 0
+                    if bid.amount == 0 {
+                        fully_filled_ids.push(bid_id);
+                        false
+                    } else {
+                        true
+                    }
+                } else {
+                    false
+                }
             });
 
             if bids_at_price.is_empty() {
@@ -121,18 +149,25 @@ impl OrderBook {
             }
         }
 
+        for id in fully_filled_ids {
+            self.orders.remove(&id);
+        }
         for price in empty_price_levels {
             self.bids.remove(&price);
         }
     }
 
     fn add_bid(&mut self, order: Order) {
-        // .entry() is highly efficient. If the price level doesn't exist, it allocates a new Vec.
-        // If it does, it pushes to the end of the existing Vec (maintaining Time Priority).
-        self.bids.entry(order.price).or_insert_with(Vec::new).push(order);
+        let price = order.price;
+        let id = order.id;
+        self.orders.insert(id, order);
+        self.bids.entry(price).or_insert_with(Vec::new).push(id);
     }
 
     fn add_ask(&mut self, order: Order) {
-        self.asks.entry(order.price).or_insert_with(Vec::new).push(order);
+        let price = order.price;
+        let id = order.id;
+        self.orders.insert(id, order);
+        self.asks.entry(price).or_insert_with(Vec::new).push(id);
     }
 }

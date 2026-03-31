@@ -1,0 +1,14 @@
+/Users/avinash/Desktop/projects/hex_protocol/sequencer/target/release/deps/serde-9dbebf2db2f8d8e4.d: /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/avinash/Desktop/projects/hex_protocol/sequencer/target/release/build/serde-007012960ca26bae/out/private.rs
+
+/Users/avinash/Desktop/projects/hex_protocol/sequencer/target/release/deps/libserde-9dbebf2db2f8d8e4.rlib: /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/avinash/Desktop/projects/hex_protocol/sequencer/target/release/build/serde-007012960ca26bae/out/private.rs
+
+/Users/avinash/Desktop/projects/hex_protocol/sequencer/target/release/deps/libserde-9dbebf2db2f8d8e4.rmeta: /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/avinash/Desktop/projects/hex_protocol/sequencer/target/release/build/serde-007012960ca26bae/out/private.rs
+
+/Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/avinash/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/avinash/Desktop/projects/hex_protocol/sequencer/target/release/build/serde-007012960ca26bae/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/avinash/Desktop/projects/hex_protocol/sequencer/target/release/build/serde-007012960ca26bae/out

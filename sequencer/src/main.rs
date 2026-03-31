@@ -1,39 +1,37 @@
-// src/main.rs
-
-// 1. Declare the engine module so the compiler looks at `src/engine/mod.rs`
 mod engine;
+mod prover;
+mod rpc;
 
-// 2. Import the structs you wrote in `orderbook.rs`
 use engine::orderbook::{OrderBook, Order};
+use tokio::sync::mpsc;
+use rpc::websocket::start_server;
 
-fn main() {
-    println!("Initializing HEX Matching Engine...");
+#[tokio::main]
+async fn main() {
+    println!("Initializing HEX Decentralized CLOB Sequencer...");
 
-    // 3. Initialize the OrderBook in memory
-    // We make it `mut` (mutable) because processing orders changes its internal state.
+    // 1. Initialize the OrderBook Memory safely
     let mut book = OrderBook::new();
-    println!("OrderBook successfully initialized.\n");
+    
+    // 2. Create the MPSC Channel for 10,000 parallel queued orders
+    let (tx, mut rx) = mpsc::channel::<Order>(10_000);
 
-    // 4. Create a mock Buy Order
-    let buy_order = Order {
-        id: 1,
-        user_address: "0xAlice...".to_string(),
-        price: 2000, // Willing to buy at $2000
-        amount: 10,  // Wants 10 units of the RWA token
-        is_buy: true,
-    };
+    // 3. Spawn the internal Matching Engine Task
+    // This runs completely independently in the background, systematically processing orders ONE AT A TIME 
+    // to strictly preserve the Price-Time Priority and completely eliminate any multi-threading Data Races.
+    tokio::spawn(async move {
+        println!("Core Matching Engine Loop is actively listening for incoming RPC orders...");
+        
+        // Wait asynchronously for validated orders from the RPC WebSockets
+        while let Some(order) = rx.recv().await {
+            // Because we pass ownership of the order, and `book` is wholly owned by this MPSC consumer loop,
+            // we get fearless, completely locked-down memory-safe sequence matching without a single Mutex!
+            // println!("Received new Order: {:?}", order); // (silenced to keep high-frequency performance clean)
+            book.place_order(order);
+        }
+    });
 
-    println!("Incoming {:?}", buy_order);
-
-    // 5. Process the order
-    // This passes ownership of the `buy_order` into the engine.
-    book.process_order(buy_order);
-
-    // 6. Check the state of the OrderBook
-    // Since there were no sellers (asks) to match with, this order should 
-    // now be resting peacefully in the `bids` B-Tree.
-    println!("\nCurrent Bids in the OrderBook:");
-    for (price, orders) in book.bids.iter() {
-        println!("Price Level ${}: {} resting orders", price, orders.len());
-    }
+    // 4. Start the Axum WebSockets Server to blindly ingest the market data
+    // It passes clones of the `tx` sender into the thousands of individual parallel user connections.
+    start_server(tx).await;
 }

@@ -4,13 +4,37 @@
 use sp1_sdk::{ProverClient, SP1Stdin, SP1ProofWithPublicValues};
 use serde::{Deserialize, Serialize};
 
-// This represents the state transition data we send to the ZK-VM
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AccountState {
+    pub nonce: u64,
+    pub base_balance: u64,
+    pub quote_balance: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Trade {
+    pub maker_pubkey: Vec<u8>,
+    pub taker_pubkey: Vec<u8>,
+    pub amount: u64,
+    pub price: u64,
+    pub maker_signature: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MerkleProof {
+    pub sibling_hashes: Vec<[u8; 32]>,
+    pub is_left: Vec<bool>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BatchPayload {
     pub previous_state_root: [u8; 32],
     pub new_state_root: [u8; 32],
-    // In production, this contains the compressed list of matched trades
-    pub trade_data: Vec<u8>, 
+    pub trades: Vec<Trade>,
+    pub maker_states: Vec<AccountState>,
+    pub maker_proofs: Vec<MerkleProof>,
+    pub taker_states: Vec<AccountState>,
+    pub taker_proofs: Vec<MerkleProof>,
 }
 
 pub struct HexProver {
