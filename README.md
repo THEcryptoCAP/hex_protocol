@@ -1,18 +1,6 @@
 HEX(Hash-DEX) is a decentralised CLOB on Hash key chain(optimistic rollup)
 # Walkthrough: Action-Based WebSocket Routing
 
-## Overview
-
-We integrated `cancel_order` and `get_order` into the live WebSocket pipeline, eliminating all OrderBook dead-code warnings and establishing a structured message-routing architecture across 3 files.
-
-## Files Changed
-
-- [orderbook.rs](file:///Users/avinash/Desktop/projects/hex_protocol/sequencer/src/engine/orderbook.rs) — Added `EngineMessage` enum, removed `#[allow(dead_code)]`
-- [main.rs](file:///Users/avinash/Desktop/projects/hex_protocol/sequencer/src/main.rs) — Switched channel type, added match-based routing
-- [websocket.rs](file:///Users/avinash/Desktop/projects/hex_protocol/sequencer/src/rpc/websocket.rs) — Full rewrite with action-based JSON routing
-
----
-
 ## How It Works
 
 ### The New Pipeline
